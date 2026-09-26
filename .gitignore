@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Python 虚拟环境（Conda 环境不要创建在仓库目录内）
+.venv/
+venv/
+envs/
+
+# CMake / C++ 构建产物
+build/
+
+# 视频输出文件体积过大，不提交到 Git
+*.mp4
+*.avi
+*.mkv
+*.mov
+
+# 编辑器与系统文件
+.vscode/
+.idea/
+.DS_Store
+
+# 课程说明文档，不纳入版本控制
+Assignment2_学生作业说明.md
