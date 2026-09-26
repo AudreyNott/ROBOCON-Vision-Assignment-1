@@ -2,6 +2,9 @@
 __pycache__/
 *.py[cod]
 
+# pip / setuptools 构建产物（由 pip install -e . 生成，非源码）
+*.egg-info/
+
 # Python 虚拟环境（Conda 环境不要创建在仓库目录内）
 .venv/
 venv/

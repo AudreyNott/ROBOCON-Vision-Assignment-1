@@ -188,19 +188,219 @@ sudo apt install nvidia-cuda-toolkit
 
 ## 2. Python Project A
 
-> 待完成。需要记录：`conda create` / `conda activate` / `python --version` / `which python` / `pip install` / `python camera.py` 的**实际执行命令与输出**；程序连续运行不少于 30 秒；退出后生成的 `raw_capture.mp4` 路径。
->
-> 必须截图：原始图像 + 灰度图像 + 轮廓图像三个窗口同时来自运行中的 Project A（存入 `assets/python_a/`）。
+Project A 代码位于 `python_A/`，功能为：打开摄像头 → 持续读取图像 → 显示原始图像 → 灰度化 → 轮廓提取 → 持续运行 → `q` / `ESC` 退出 → 保存未经处理的原始摄像头视频。
+
+### 2.1 环境创建与激活
+
+项目 `pyproject.toml` 声明 `requires-python = ">=3.9,<3.11"`，因此选择 Python 3.10。**未修改 `pyproject.toml` 中的任何约束。**
+
+```bash
+conda create -n robocon-a python=3.10 -y
+conda activate robocon-a
+```
+
+```text
+Preparing transaction: done
+Verifying transaction: done
+Executing transaction: done
+
+To activate this environment, use
+    $ conda activate robocon-a
+```
+
+### 2.2 解释器确认
+
+```bash
+python --version
+which python
+```
+
+```text
+Python 3.10.21
+/home/audrey/miniconda3/envs/robocon-a/bin/python
+```
+
+`which python` 指向 `envs/robocon-a/bin/python`，确认解释器来自新建的 Conda 环境，而不是 `base`。
+
+### 2.3 依赖安装
+
+```bash
+cd ~/ROBOCON-Vision-Assignment-1/python_A
+python -m pip install -e . -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+> 命令末尾的 `-i` 指定了清华 PyPI 镜像以加快下载；`. ` 表示安装当前目录的项目，`-e` 为可编辑安装。加上 `.` 之后 pip 会读取 `pyproject.toml` 并强制执行其中声明的 `requires-python` 与依赖版本范围。
+
+```text
+Obtaining file:///home/audrey/ROBOCON-Vision-Assignment-1/python_A
+Collecting numpy<2.0,>=1.26 (from robocon-vision-assignment1-project-a==1.0.0)
+Collecting opencv-python<5.0,>=4.9 (from robocon-vision-assignment1-project-a==1.0.0)
+Successfully installed numpy-1.26.4 opencv-python-4.11.0.86 robocon-vision-assignment1-project-a-1.0.0
+```
+
+安装过程中 pip 依次尝试了 opencv-python 的 4.14.0.94、4.13.0.92、4.13.0.90、4.12.0.88 四个版本，最终回退到 **4.11.0.86**。原因是 OpenCV 4.12 及以上要求 `numpy>=2`，与项目声明的 `numpy>=1.26,<2.0` 冲突。这说明 pip 确实在读取并服从 `pyproject.toml` 的约束，而不是绕过它。
+
+验证安装结果：
+
+```bash
+python -c "import cv2, numpy; print(cv2.__version__, numpy.__version__)"
+```
+
+```text
+4.11.0 1.26.4
+```
+
+### 2.4 运行
+
+```bash
+python camera.py
+```
+
+```text
+================================================================
+ROBOCON Vision Assignment 1 - Python Project A
+PID:          28680
+PPID:         9628
+Python:       /home/audrey/miniconda3/envs/robocon-a/bin/python
+Python ver.:  3.10.21
+Camera index: 0
+Raw output:   /home/audrey/ROBOCON-Vision-Assignment-1/python_A/raw_capture.mp4
+Keep this process running and inspect it from another terminal.
+Press q or ESC in an OpenCV window to exit.
+================================================================
+Actual stream: 1280x720, writer FPS=10.00
+Saved raw video: /home/audrey/ROBOCON-Vision-Assignment-1/python_A/raw_capture.mp4
+Captured frames: 911
+Elapsed time:    93.3 s
+Loop rate:       9.8 frame/s
+```
+
+程序连续运行 **93.3 秒**（要求 ≥30 秒），按 `q` 退出。
+
+### 2.5 输出视频
+
+```bash
+ls -lh raw_capture.mp4
+```
+
+```text
+-rw-rw-r-- 1 audrey audrey 27M  9月 26 16:42 raw_capture.mp4
+```
+
+输出为**未经任何处理的原始摄像头视频**：代码中 `writer.write(frame)` 在 `process_frame()` 之前执行，写入的是 `capture.read()` 拿到的原始帧。
+
+### 2.6 图像结果截图
+
+![Project A 原始图像 / 灰度图像 / 轮廓图像](assets/python_a/three_windows.png)
+
+三个窗口（Original / Grayscale / Contours）同时来自正在运行的 Project A。
 
 ---
 
 ## 3. Process Observation
 
-> 待完成。需要记录：从系统中查找 Project A 进程的**完整查找过程**（用了哪些 `ps` / `pgrep` / 管道组合），以及程序自己打印的 PID 与查到的 PID 的核对结果。
->
-> 至少确认：PID、PPID、CMD、CPU %、MEM %、运行时间。
->
-> 必须截图：`htop`（能在图中看到整机使用情况与占用线程），存入 `assets/process/`。
+Project A 在启动时会打印自己的 PID。本节的做法是：让程序在**终端 1** 中持续运行，另开**终端 2**，完全从系统层面独立找出这个进程，再与程序自己打印的 PID 核对。
+
+### 3.1 查找过程
+
+**第一步：用 `pgrep` 按完整命令行匹配**
+
+```bash
+pgrep -af "python camera.py"
+```
+
+```text
+29552 python camera.py
+```
+
+`-f` 让 pgrep 匹配**完整命令行**而非仅匹配进程名。这一步是必需的：该进程的进程名实际是 `python`，若不加 `-f` 而直接搜 `camera.py`，不会有任何结果。`-a` 顺带把命令行打印出来，便于核对。
+
+> 匹配串写成 `"python camera.py"` 而不是裸的 `"camera.py"`，是因为 `-f` 做的是纯文本匹配，任何命令行中碰巧含有该字符串的进程都会被命中——实测中 `pgrep -af "camera.py"` 会把执行该命令的 shell 自身也匹配出来。
+
+**第二步：用 `ps` 一次取出全部所需字段**
+
+```bash
+ps -o pid,ppid,cmd,%cpu,%mem,etime -p $(pgrep -f "python camera.py")
+```
+
+```text
+    PID    PPID CMD                         %CPU %MEM     ELAPSED
+  29552    9628 python camera.py             139  0.7       05:59
+```
+
+`$(...)` 是命令替换：先执行内层 `pgrep` 得到 PID，再把结果填入 `ps` 的 `-p` 参数位置。`-o` 指定输出列：
+
+| 列 | 含义 | 实测值 |
+| --- | --- | --- |
+| `pid` | PID | **29552** |
+| `ppid` | PPID（父进程 PID） | **9628** |
+| `cmd` | CMD（完整命令行） | **python camera.py** |
+| `%cpu` | CPU 占用百分比 | **139** |
+| `%mem` | 物理内存占用百分比 | **0.7** |
+| `etime` | 已运行时间（elapsed time） | **05:59** |
+
+**第三步：用 `pstree` 查看该进程下的线程**
+
+```bash
+pstree -p $(pgrep -f "python camera.py")
+```
+
+```text
+python(29552)─┬─{python}(29553)
+              ├─{python}(29554)
+              ├─{python}(29555)
+              ├─{python}(29556)
+              │      ...
+              ├─{python}(29614)
+              └─{python}(29615)
+```
+
+`-p` 显示各节点的 PID，花括号 `{}` 包裹的就是线程。该进程共 **63 个线程**，线程 PID 从 29553 连续排到 29615。
+
+### 3.2 PID 核对
+
+| 来源 | PID |
+| --- | --- |
+| 程序自己打印（终端 1） | 29552 |
+| 从系统中查出（终端 2 的 `pgrep`） | 29552 |
+
+**两者一致。**
+
+### 3.3 htop 截图
+
+![htop 进程与线程观察](assets/process/htop.png)
+
+截图前的操作：按 `F4` 输入 `camera.py` 过滤出目标进程，再按 `H` 打开线程显示。
+
+图中可确认两项内容：
+
+- **整机使用情况**：32 个逻辑核各自的占用条、内存 `8.10G/30.6G`、`Tasks: 179, 1772 thr`、`Load average: 2.20 1.80 1.10`、`Uptime: 05:27:19`。
+- **该进程占用的线程**：主进程 `PID 29552`（`TIME+` 为 `3:14.93`），其下 63 个线程缩进排列，每个线程单独列出 `CPU%` 与 `TIME+`（约 `0:23`）。
+
+### 3.4 CPU 139% 与 63 个线程的来源
+
+`ps` 报告的 `%CPU` 为 139%，**超过 100%**。这是因为该列是跨所有核心的累计值：本机有 32 个逻辑核，单线程任务满负荷也只有 100%，139% 说明该进程同时在多个核心上运行。
+
+线程数 63 则来自 OpenCV 与 Qt：
+
+```bash
+python -c "import cv2; print(cv2.getNumThreads())"
+```
+
+```text
+32
+```
+
+```bash
+python -c "import cv2; print(cv2.getBuildInformation())" | grep -E 'GUI|Parallel'
+```
+
+```text
+  GUI:                           QT5
+  Parallel framework:            pthreads
+```
+
+OpenCV 使用 pthreads 作为并行后端，默认按 CPU 数量（32）创建工作线程池；Qt5 GUI 后端又为三个 `cv2.imshow` 窗口另开事件线程——两者相加即 `pstree` 中看到的 63 个线程，也是该进程 CPU 时间的主要来源。
 
 ---
 
@@ -246,3 +446,4 @@ sudo apt install nvidia-cuda-toolkit
 - `nvidia-smi` 报告的 GPU Bus-Id 为 `00000000:01:00.0`，与 `lspci` 报告的 `01:00.0` 一致，可确认二者指向同一块物理显卡。
 - 本机为双显卡（NVIDIA 独显 + AMD 集成显卡）且运行在 X11 下，后续 Part II 调用摄像头时需留意默认渲染设备。
 - README 编写过程中，`cat` 曾出现「找不到命令」的报错，实际原因是命令输入时的拼写/大小写问题，系统本身 `cat` 位于 `/usr/bin/cat` 且 `/usr/bin` 在 `PATH` 中，与系统环境无关。
+- **Project A 首次运行时三个窗口全黑。** 程序输出 `Captured frames: 646`、`Elapsed time: 113.4 s`，即摄像头在按 10 fps 正常吐帧；但生成的 `raw_capture.mp4` 仅 791 KB，约合 **1.2 KB/帧**，而 1280×720 的真实画面每帧压缩后应有几十 KB，说明帧内容是近乎全黑的底噪。排查过程：`/sys/class/video4linux/video0/name` 与 `udevadm info` 确认设备为 `174f:246f Syntek Integrated Camera` 且 `ID_V4L_CAPABILITIES=:capture:`，UVC 驱动已正常绑定，`fuser` 确认无其他进程占用——硬件、驱动、代码均无问题，最终确认是**摄像头隐私快门未打开**。打开快门后重录，得到 27 MB / 911 帧的正常视频。
