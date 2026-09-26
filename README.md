@@ -259,7 +259,7 @@ python camera.py
 ```text
 ================================================================
 ROBOCON Vision Assignment 1 - Python Project A
-PID:          28680
+PID:          32421
 PPID:         9628
 Python:       /home/audrey/miniconda3/envs/robocon-a/bin/python
 Python ver.:  3.10.21
@@ -270,12 +270,12 @@ Press q or ESC in an OpenCV window to exit.
 ================================================================
 Actual stream: 1280x720, writer FPS=10.00
 Saved raw video: /home/audrey/ROBOCON-Vision-Assignment-1/python_A/raw_capture.mp4
-Captured frames: 911
-Elapsed time:    93.3 s
-Loop rate:       9.8 frame/s
+Captured frames: 460
+Elapsed time:    47.4 s
+Loop rate:       9.7 frame/s
 ```
 
-程序连续运行 **93.3 秒**（要求 ≥30 秒），按 `q` 退出。
+程序连续运行 **47.4 秒**（要求 ≥30 秒），按 `q` 退出。
 
 ### 2.5 输出视频
 
@@ -284,7 +284,7 @@ ls -lh raw_capture.mp4
 ```
 
 ```text
--rw-rw-r-- 1 audrey audrey 27M  9月 26 16:42 raw_capture.mp4
+-rw-rw-r-- 1 audrey audrey 13M  9月 26 17:50 raw_capture.mp4
 ```
 
 输出为**未经任何处理的原始摄像头视频**：代码中 `writer.write(frame)` 在 `process_frame()` 之前执行，写入的是 `capture.read()` 拿到的原始帧。
@@ -300,6 +300,8 @@ ls -lh raw_capture.mp4
 ## 3. Process Observation
 
 Project A 在启动时会打印自己的 PID。本节的做法是：让程序在**终端 1** 中持续运行，另开**终端 2**，完全从系统层面独立找出这个进程，再与程序自己打印的 PID 核对。
+
+> 本节观察的是**独立的一次运行**：为了让进程有足够时间被观察（期间还要打开 `htop`、截图），该次运行持续了约 11 分钟。因此本节出现的 PID 与 2.4 节记录的那次运行不同，属于正常现象。
 
 ### 3.1 查找过程
 
@@ -406,9 +408,147 @@ OpenCV 使用 pthreads 作为并行后端，默认按 CPU 数量（32）创建�
 
 ## 4. Python Project B
 
-> 待完成。需要记录：Project B 的 `conda create` / `conda activate` / `python --version` / `which python` / `pip install` / `python analyze_video.py` 实际命令与输出，以及输出 MP4 的路径。
->
-> 还需说明：Project A 使用的 Conda 环境与 Python 版本、Project B 使用的 Conda 环境与 Python 版本、以及**为什么两个项目不能共用一个环境**（两个 `pyproject.toml` 声明的 Python 版本范围不兼容）。
+Project B 位于 `python_B/`，读取 Project A 保存的原始 MP4，进行离线处理并输出另一个 MP4。输出为三个并排面板：
+
+```text
+原始视频 | Canny 边缘 | 帧间运动区域
+```
+
+该项目**刻意不使用 OpenCV**，依赖 ImageIO、FFmpeg、NumPy 与 scikit-image。
+
+### 4.1 环境创建与激活
+
+```bash
+conda create -n robocon-b python=3.12 -y
+conda activate robocon-b
+```
+
+`VERSION_REQUIREMENTS.md` 推荐 3.12 或 3.13，此处选择 3.12。
+
+### 4.2 解释器确认
+
+```bash
+python --version
+which python
+```
+
+```text
+Python 3.12.14
+/home/audrey/miniconda3/envs/robocon-b/bin/python
+```
+
+### 4.3 依赖安装
+
+```bash
+cd ~/ROBOCON-Vision-Assignment-1/python_B
+python -m pip install -e . -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+```text
+Successfully installed imageio-2.37.4 imageio-ffmpeg-0.6.0 lazy-loader-0.6 networkx-3.7 numpy-2.5.3 pillow-12.3.0 robocon-vision-assignment1-project-b-1.0.0 scikit-image-0.26.0 scipy-1.18.1 tifffile-2026.9.20
+```
+
+验证安装结果：
+
+```bash
+python -c "import numpy, imageio, skimage; print('numpy', numpy.__version__); print('imageio', imageio.__version__); print('skimage', skimage.__version__)"
+```
+
+```text
+numpy 2.5.3
+imageio 2.37.4
+skimage 0.26.0
+```
+
+### 4.4 运行
+
+```bash
+python analyze_video.py --input ../python_A/raw_capture.mp4 --output advanced_analysis.mp4
+```
+
+```text
+Processed 30 frames...
+Processed 60 frames...
+Processed 90 frames...
+Processed 120 frames...
+Processed 150 frames...
+Processed 180 frames...
+Processed 210 frames...
+Processed 240 frames...
+Processed 270 frames...
+Processed 300 frames...
+Processed 330 frames...
+Processed 360 frames...
+Processed 390 frames...
+Processed 420 frames...
+Processed 450 frames...
+Input:  /home/audrey/ROBOCON-Vision-Assignment-1/python_A/raw_capture.mp4
+Output: /home/audrey/ROBOCON-Vision-Assignment-1/python_B/advanced_analysis.mp4
+Frames: 460
+Panels: original | Canny edges | motion mask
+```
+
+输入 460 帧全部处理完成，与 Project A 录制的帧数一致。
+
+### 4.5 输出视频
+
+```bash
+ls -lh advanced_analysis.mp4
+```
+
+```text
+-rw-rw-r-- 1 audrey audrey 15M  9月 26 17:54 advanced_analysis.mp4
+```
+
+视频规格（读取容器头得到）：
+
+```text
+Duration: 00:00:46.00
+Video: h264 (High), 1920x360, 10 fps
+```
+
+`1920×360` 即三个 **640×360** 的面板并排，对应 `--max-width 640`：1280×720 的输入等比缩放到 640 宽后高度为 360。时长 46.00 秒 = 460 帧 ÷ 10 fps，与原视频一致。
+
+**编码格式对比**：Project A 用 `mp4v`，Project B 用 `h264`。这是两者视频 I/O 路径不同的直接结果——A 经由 OpenCV 的 `VideoWriter`，B 经由 `imageio-ffmpeg`。
+
+![Project B 输出画面（原始 / Canny 边缘 / 帧间运动）](assets/python_b/analysis_frame.png)
+
+### 4.6 环境隔离验证
+
+作业要求「作业结束时，Project A 和 Project B 都必须能够重新运行，不得为了运行另一个项目而破坏原项目环境」。因此在 `robocon-b` 中运行完 Project B 之后，切回 A 的环境验证其未受影响：
+
+```bash
+conda deactivate
+conda activate robocon-a
+python --version
+which python
+```
+
+```text
+Python 3.10.21
+/home/audrey/miniconda3/envs/robocon-a/bin/python
+```
+
+`robocon-a` 仍是 Python 3.10.21，解释器路径不变，说明创建并使用 `robocon-b` 没有影响 Project A 的环境。
+
+### 4.7 两个环境为何不能合并
+
+| | Project A | Project B |
+| --- | --- | --- |
+| Conda 环境 | `robocon-a` | `robocon-b` |
+| Python 版本 | 3.10.21 | 3.12.14 |
+| NumPy 版本 | 1.26.4 | 2.5.3 |
+| 视频 I/O | `opencv-python` 4.11.0.86 | `imageio` 2.37.4 + `imageio-ffmpeg` 0.6.0 |
+| `requires-python` | `>=3.9,<3.11` | `>=3.12,<3.14` |
+| NumPy 约束 | `>=1.26,<2.0` | `>=2.0,<3.0` |
+
+不能把两个项目当成同一个环境来完成，原因有三层：
+
+1. **Python 版本区间互斥。** A 要求 `>=3.9,<3.11`，B 要求 `>=3.12,<3.14`，两个区间的**交集是空集**。不存在任何一个 Python 版本能同时满足两者——这不是「推荐版本不同」，而是数学上不可能。
+2. **NumPy 大版本互斥。** A 声明 `numpy>=1.26,<2.0`，B 声明 `numpy>=2.0,<3.0`，同样没有交集。NumPy 2.0 是一次不向后兼容的大版本升级。
+3. **依赖栈本身不同。** A 依赖 `opencv-python`，B 刻意不使用 OpenCV，改用 `imageio` + `imageio-ffmpeg` + `scikit-image`。
+
+因此必须建立两个独立的 Conda 环境，并分别让 `pip` 读取各自的 `pyproject.toml`。两个 `pyproject.toml` 中的版本约束均未被修改。
 
 ---
 
@@ -446,4 +586,7 @@ OpenCV 使用 pthreads 作为并行后端，默认按 CPU 数量（32）创建�
 - `nvidia-smi` 报告的 GPU Bus-Id 为 `00000000:01:00.0`，与 `lspci` 报告的 `01:00.0` 一致，可确认二者指向同一块物理显卡。
 - 本机为双显卡（NVIDIA 独显 + AMD 集成显卡）且运行在 X11 下，后续 Part II 调用摄像头时需留意默认渲染设备。
 - README 编写过程中，`cat` 曾出现「找不到命令」的报错，实际原因是命令输入时的拼写/大小写问题，系统本身 `cat` 位于 `/usr/bin/cat` 且 `/usr/bin` 在 `PATH` 中，与系统环境无关。
-- **Project A 首次运行时三个窗口全黑。** 程序输出 `Captured frames: 646`、`Elapsed time: 113.4 s`，即摄像头在按 10 fps 正常吐帧；但生成的 `raw_capture.mp4` 仅 791 KB，约合 **1.2 KB/帧**，而 1280×720 的真实画面每帧压缩后应有几十 KB，说明帧内容是近乎全黑的底噪。排查过程：`/sys/class/video4linux/video0/name` 与 `udevadm info` 确认设备为 `174f:246f Syntek Integrated Camera` 且 `ID_V4L_CAPABILITIES=:capture:`，UVC 驱动已正常绑定，`fuser` 确认无其他进程占用——硬件、驱动、代码均无问题，最终确认是**摄像头隐私快门未打开**。打开快门后重录，得到 27 MB / 911 帧的正常视频。
+- **Project A 首次运行时三个窗口全黑。** 程序输出 `Captured frames: 646`、`Elapsed time: 113.4 s`，即摄像头在按 10 fps 正常吐帧；但生成的 `raw_capture.mp4` 仅 791 KB，约合 **1.2 KB/帧**，而 1280×720 的真实画面每帧压缩后应有几十 KB，说明帧内容是近乎全黑的底噪。排查过程：`/sys/class/video4linux/video0/name` 与 `udevadm info` 确认设备为 `174f:246f Syntek Integrated Camera` 且 `ID_V4L_CAPABILITIES=:capture:`，UVC 驱动已正常绑定，`fuser` 确认无其他进程占用——硬件、驱动、代码均无问题，最终确认是**摄像头隐私快门未打开**。打开快门后重录，画面恢复正常（单帧体积由约 1.2 KB 升至约 30 KB，相差约 25 倍）。
+- **`camera.py` 的 `--output` 默认路径固定，多次运行会互相覆盖。** 做第 3 章的进程观察时，程序为配合观察持续运行了约 11 分钟，退出时把 2.4 节那次 47 秒录制的文件覆盖掉了，导致 README 中的数字与磁盘上的实际文件一度不一致。排查方式是读取视频容器头（不解码）确认实际时长与帧率：时长 `00:10:59.70` 配合 `10 fps`，说明该文件约有 6597 帧，而非 2.4 节记录的 460 帧。最终重新录制了一段 47.4 秒的视频，使 README 与产物一致。**结论：需要保留某次录制结果时，应当用 `--output` 指定不同的文件名，而不是依赖默认路径。**
+- **Conda 环境是「堆叠」的，`conda deactivate` 只退回一层。** 在 `(robocon-a)` 中直接执行 `conda activate robocon-b` 之后，`conda deactivate` 回到的是 `(robocon-a)` 而**不是** `(base)`——终端提示符可以直接观察到这一点。这意味着多个环境会层层叠加，切换项目时需要留意当前实际处在哪一层，可用 `which python` 确认解释器的真实来源。
+- **视频文件未提交到 Git**（`.gitignore` 中已排除 `*.mp4`），本地保留路径为：`python_A/raw_capture.mp4`（13 MB，Project A 录制的原始视频）与 `python_B/advanced_analysis.mp4`（15 MB，Project B 的输出）。对应的关键画面已以截图形式提交到 `assets/`。
