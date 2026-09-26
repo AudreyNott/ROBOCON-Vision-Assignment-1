@@ -819,9 +819,206 @@ ls -lh cmake_output.mp4
 
 ## 7. Git / GitHub
 
-> 待完成。需要记录实际执行过的关键命令：`git status` / `git add` / `git commit` / `git branch` / `git switch` / `git push` / `git log --oneline --graph --all`。
->
-> 要求：至少 3 个有意义的 commit；至少创建并使用过 1 个非 main 分支，且该分支的修改最终回到主分支；不得提交 Conda 环境目录、`build/`、大型原始依赖库。
+远程仓库：`git@github.com:AudreyNott/ROBOCON-Vision-Assignment-1.git`
+
+### 7.1 提交历史
+
+```bash
+git log --oneline --graph --all
+```
+
+```text
+*   50941cd (HEAD -> main) merge: 合并 cpp-build 分支的 C++/CMake 工作
+|\  
+| * cb5eb71 (cpp-build) feat: 手工 g++ 与 CMake 构建 C++ 视频处理程序（Part V & VI）
+|/  
+* 239df41 feat: 完成 Python Project B 的独立环境部署与运行（Part IV）
+* 9bf8d2d feat: 完成 Python Project A 部署与进程观察（Part II & III）
+* 2f89cb2 docs: 记录 Part I 系统环境信息并搭建 README 骨架
+```
+
+`|\` 与 `|/` 之间的部分即 `cpp-build` 分支：它从 `239df41` 分叉，在 `cb5eb71` 上完成 C++/CMake 工作，再由 `50941cd` 合并回 `main`。
+
+### 7.2 各提交的内容
+
+| 提交 | 内容 |
+| --- | --- |
+| `2f89cb2` | Part I 系统环境信息（第 1 章）与 README 骨架、`.gitignore` |
+| `9bf8d2d` | Part II & III：Project A 环境部署与运行（第 2 章）、进程观察（第 3 章）及截图 |
+| `239df41` | Part IV：Project B 独立环境部署与运行（第 4 章）及截图 |
+| `cb5eb71` | Part V & VI：手工 `g++` 构建与 CMake 构建（第 5、6 章）、`cpp/CMakeLists.txt` |
+| `50941cd` | 合并提交，将 `cpp-build` 分支的修改并入 `main` |
+
+四个内容提交分别对应「系统信息 / Python 部分 / C++·CMake 部分」的划分，满足作业对多个有意义提交的要求。
+
+### 7.3 非 main 分支的创建、使用与合并
+
+C++/CMake 部分的工作在独立分支上完成，最终合并回主分支：
+
+```bash
+git switch -c cpp-build
+```
+
+`switch` 用于切换分支，`-c`（create）表示分支不存在时创建。此命令从 `main` 创建 `cpp-build` 并切换过去。
+
+在该分支上完成 Part V 与 Part VI 的全部工作并提交：
+
+```bash
+git add -A
+git commit -m "feat: 手工 g++ 与 CMake 构建 C++ 视频处理程序（Part V & VI）"
+```
+
+完成后切回 `main` 并合并：
+
+```bash
+git switch main
+git merge --no-ff cpp-build -m "merge: 合并 cpp-build 分支的 C++/CMake 工作"
+```
+
+`--no-ff`（no fast-forward）强制生成合并提交。若不使用该选项，由于 `main` 自分叉后未再产生提交，Git 会采用 fast-forward 方式直接移动指针，`git log --graph` 中将看不出曾经存在分支。使用后可在 7.1 节的历史图中看到明确的分叉与汇合，即「该分支上的修改最终回到主分支」的证据。
+
+### 7.4 提交前检查：不包含构建产物与视频
+
+`.gitignore` 中排除的内容：
+
+```gitignore
+build/
+cpp/cpp_task
+*.mp4
+*.egg-info/
+```
+
+逐项确认这些规则确实生效：
+
+```bash
+git check-ignore -v cpp/cpp_task cpp/build cpp/cpp_output.mp4
+```
+
+```text
+.gitignore:15:cpp/cpp_task	cpp/cpp_task
+.gitignore:14:build/	cpp/build
+.gitignore:18:*.mp4	cpp/cpp_output.mp4
+```
+
+`check-ignore -v` 会打印匹配到的规则所在文件、行号和规则内容，因此可以确认每一项都是被规则显式排除，而不是碰巧没被 `git add` 到。
+
+最终提交到仓库的文件共 17 个：
+
+```bash
+git ls-files
+```
+
+```text
+.gitignore
+README.md
+assets/process/htop.png
+assets/python_a/three_windows.png
+assets/python_b/analysis_frame.png
+cpp/CMakeLists.txt
+cpp/README.md
+cpp/include/transform.hpp
+cpp/src/main.cpp
+cpp/src/transform.cpp
+python_A/camera.py
+python_A/pyproject.toml
+python_A/requirements.txt
+python_B/README.md
+python_B/analyze_video.py
+python_B/pyproject.toml
+python_B/requirements.txt
+```
+
+Conda 环境目录（`robocon-a`、`robocon-b`）创建在 `~/miniconda3/envs/` 下，位于仓库之外，因此不存在被提交的可能；CMake 构建目录 `cpp/build/` 与两个视频文件均被 `.gitignore` 排除。
+
+**视频文件的本地路径**（未上传，因体积过大）：`python_A/raw_capture.mp4`（13 MB，Project A 录制的原始视频）与 `python_B/advanced_analysis.mp4`（15 MB，Project B 的输出）、`cpp/cpp_output.mp4` 与 `cpp/build/cmake_output.mp4`（各 95 MB，C++ 程序的两份输出）。关键画面已以截图形式提交至 `assets/`。
+
+### 7.5 关联远程仓库与推送
+
+```bash
+git remote add origin git@github.com:AudreyNott/ROBOCON-Vision-Assignment-1.git
+git remote -v
+```
+
+`origin` 是远程仓库的默认别名。随后推送：
+
+```bash
+git push -u origin main
+```
+
+```text
+To github.com:AudreyNott/ROBOCON-Vision-Assignment-1.git
+ * [new branch]      main -> main
+分支 'main' 设置为跟踪 'origin/main'。
+```
+
+`-u`（`--set-upstream`）将本地 `main` 与远程 `main` 关联，只需在首次推送时使用，之后直接执行 `git push` 即可。
+
+非 main 分支需要显式推送：
+
+```bash
+git push origin cpp-build
+```
+
+```text
+To github.com:AudreyNott/ROBOCON-Vision-Assignment-1.git
+ * [new branch]      cpp-build -> cpp-build
+```
+
+核对分支与跟踪关系：
+
+```bash
+git branch -vv
+```
+
+```text
+  cpp-build cb5eb71 feat: 手工 g++ 与 CMake 构建 C++ 视频处理程序（Part V & VI）
+* main      50941cd [origin/main] merge: 合并 cpp-build 分支的 C++/CMake 工作
+```
+
+`*` 标记当前所在分支；`main` 行中的 `[origin/main]` 表示上游跟踪已建立。
+
+### 7.6 首次推送前对截图与提交历史的处理
+
+`assets/python_b/analysis_frame.png` 由摄像头实拍画面生成，其中包含可辨认的人物面部。该仓库为公开仓库，因此在首次推送前先对图片中的人物面部区域做了模糊处理，再修正历史，使未打码的版本不进入远程仓库。
+
+由于该图片是在 `239df41` 中引入的，而其后还有分支提交与合并提交，直接修改工作区再提交无法移除历史中的旧版本（Git 保存每次提交的完整快照）。采用的方式是：在引入该图片的提交上做修正，再将其后的提交重新应用，最后重建合并。
+
+```bash
+git switch -c tmp-fix <引入该图片的提交>
+cp <打码后的图片> assets/python_b/analysis_frame.png
+git add assets/python_b/analysis_frame.png
+git commit --amend --no-edit
+git switch -c tmp-cpp
+git cherry-pick <cpp-build 分支上的提交>
+git switch main
+git reset --hard tmp-fix
+git merge --no-ff tmp-cpp -m "merge: 合并 cpp-build 分支的 C++/CMake 工作"
+git branch -f cpp-build tmp-cpp
+git branch -D tmp-fix tmp-cpp
+```
+
+- `commit --amend` 用暂存区内容替换上一次提交，此处即替换引入图片的那个提交；
+- `cherry-pick` 将其后的提交按改动内容重新应用，生成父提交已更新的新提交；
+- `reset --hard` 将 `main` 指向修正后的提交，随后重新执行合并。
+
+修正后逐提交检查该文件的所有版本，确认历史中只剩打码后的版本：
+
+```bash
+git log --all --format=%H | while read c; do git ls-tree -r $c -- assets/python_b/analysis_frame.png; done | awk '{print $3}' | sort -u
+```
+
+```text
+46c8e7b265ab75a65d152c480dd87fb85f37f34a
+```
+
+输出只有一行，说明所有提交中该文件指向同一个（打码后的）blob。随后清理本地遗留的悬空对象：
+
+```bash
+git reflog expire --expire=now --all
+git gc --prune=now
+```
+
+此过程全部在首次 `git push` 之前完成，因此带有人物面部的版本从未被推送到远程仓库。
 
 ---
 
@@ -835,4 +1032,3 @@ ls -lh cmake_output.mp4
 - **Project A 首次运行时三个窗口全黑。** 程序输出 `Captured frames: 646`、`Elapsed time: 113.4 s`，即摄像头在按 10 fps 正常吐帧；但生成的 `raw_capture.mp4` 仅 791 KB，约合 **1.2 KB/帧**，而 1280×720 的真实画面每帧压缩后应有几十 KB，说明帧内容是近乎全黑的底噪。排查过程：`/sys/class/video4linux/video0/name` 与 `udevadm info` 确认设备为 `174f:246f Syntek Integrated Camera` 且 `ID_V4L_CAPABILITIES=:capture:`，UVC 驱动已正常绑定，`fuser` 确认无其他进程占用——硬件、驱动、代码均无问题，最终确认是**摄像头隐私快门未打开**。打开快门后重录，画面恢复正常（单帧体积由约 1.2 KB 升至约 30 KB，相差约 25 倍）。
 - **`camera.py` 的 `--output` 默认路径固定，多次运行会互相覆盖。** 做第 3 章的进程观察时，程序为配合观察持续运行了约 11 分钟，退出时把 2.4 节那次 47 秒录制的文件覆盖掉了，导致 README 中的数字与磁盘上的实际文件一度不一致。排查方式是读取视频容器头（不解码）确认实际时长与帧率：时长 `00:10:59.70` 配合 `10 fps`，说明该文件约有 6597 帧，而非 2.4 节记录的 460 帧。最终重新录制了一段 47.4 秒的视频，使 README 与产物一致。**结论：需要保留某次录制结果时，应当用 `--output` 指定不同的文件名，而不是依赖默认路径。**
 - **Conda 环境是「堆叠」的，`conda deactivate` 只退回一层。** 在 `(robocon-a)` 中直接执行 `conda activate robocon-b` 之后，`conda deactivate` 回到的是 `(robocon-a)` 而**不是** `(base)`——终端提示符可以直接观察到这一点。这意味着多个环境会层层叠加，切换项目时需要留意当前实际处在哪一层，可用 `which python` 确认解释器的真实来源。
-- **视频文件未提交到 Git**（`.gitignore` 中已排除 `*.mp4`），本地保留路径为：`python_A/raw_capture.mp4`（13 MB，Project A 录制的原始视频）与 `python_B/advanced_analysis.mp4`（15 MB，Project B 的输出）。对应的关键画面已以截图形式提交到 `assets/`。
