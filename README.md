@@ -554,20 +554,266 @@ Python 3.10.21
 
 ## 5. C++ Manual Build
 
-> 待完成。需要原样记录**实际成功使用的那一条完整 `g++` 命令**，并回答：
->
-> - `-I` 的作用是什么？
-> - 为什么 `transform.hpp` 不单独作为一个 cpp 文件编译？
-> - 为什么只写 `main.cpp` 往往无法得到完整程序？
-> - 编译成功后产生的文件是什么？
+### 5.1 依赖安装与工具链版本
+
+`opencv-python` 只提供 Python 模块，不包含 C++ 所需的头文件与链接库，因此 C++ 部分需要单独安装开发包：
+
+```bash
+sudo apt install -y libopencv-dev libeigen3-dev cmake
+```
+
+```bash
+pkg-config --modversion opencv4
+ls /usr/include/eigen3
+g++ --version | head -n 1
+```
+
+```text
+4.6.0
+Eigen
+signature_of_eigen3_matrix_library
+unsupported
+g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+```
+
+OpenCV 4.6.0 满足 `cpp/README.md` 要求的 `>= 4.5, < 5.0`；Eigen 头文件位于 `/usr/include/eigen3`；GCC 13.3.0 满足 `>= 9`。
+
+### 5.2 实际使用的完整编译命令
+
+`-Iinclude` 是相对路径，因此必须先进入 `cpp/` 目录再编译：
+
+```bash
+cd ~/ROBOCON-Vision-Assignment-1/cpp
+```
+
+```bash
+g++ -std=c++17 -O2 src/main.cpp src/transform.cpp -Iinclude -I/usr/include/eigen3 $(pkg-config --cflags opencv4) -o cpp_task $(pkg-config --libs opencv4)
+```
+
+编译成功时没有任何输出。确认产物：
+
+```bash
+ls -lh cpp_task
+```
+
+```text
+-rwxrwxr-x 1 audrey audrey 27K  9月 26 18:40 cpp_task
+```
+
+### 5.3 命令各部分的作用
+
+| 部分 | 作用 |
+| --- | --- |
+| `g++` | C++ 编译器驱动，一次完成编译与链接 |
+| `-std=c++17` | 指定 C++17 标准，`transform.cpp` 使用的 `std::clamp` 是 C++17 引入的 |
+| `-O2` | 优化等级 2；该程序需逐帧执行滤波与边缘检测，未开优化会显著变慢 |
+| `src/main.cpp` | 编译单元之一，含程序入口 `main()` |
+| `src/transform.cpp` | 编译单元之二，含 `transformFrame()` 与 `composePreview()` 的函数体 |
+| `-Iinclude` | 头文件搜索路径，供 `#include "transform.hpp"` 使用 |
+| `-I/usr/include/eigen3` | 头文件搜索路径，供 `#include <Eigen/Dense>` 使用 |
+| `$(pkg-config --cflags opencv4)` | 展开为 `-I/usr/include/opencv4` |
+| `-o cpp_task` | 指定输出可执行文件名 |
+| `$(pkg-config --libs opencv4)` | 展开为约 60 个 `-lopencv_*`，指定要链接的库 |
+
+`pkg-config` 的参数由 pkg-config 从 `/usr/lib/x86_64-linux-gnu/pkgconfig/opencv4.pc` 读取，不需要手工列举 OpenCV 的各个模块库。`$(...)` 是 shell 的命令替换，执行时会把命令输出直接插入到该位置。
+
+链接顺序需要注意：`-l` 参数必须排在源文件**之后**。链接器按命令行从左到右处理，先记录源文件产生的未解析符号，再向后由 `-l` 指定的库来满足这些符号；顺序颠倒会产生 `undefined reference` 错误。
+
+### 5.4 作业要求的四个问题
+
+**（1）`-I` 的作用是什么？**
+
+`-I` 向编译器追加一个头文件搜索目录。源码中的两种 `#include` 写法对应两套搜索规则：
+
+- `#include "transform.hpp"`（双引号）：先搜索**当前源文件所在目录**，再搜索 `-I` 指定的目录。`main.cpp` 与 `transform.cpp` 都位于 `cpp/src/`，而 `transform.hpp` 位于 `cpp/include/`，因此默认搜索失败，必须用 `-Iinclude` 补上 `cpp/include`。
+- `#include <Eigen/Dense>`（尖括号）：只搜索 `-I` 指定目录与系统目录，不搜索源文件所在目录。Eigen 的实际路径是 `/usr/include/eigen3/Eigen/Dense`，而 GCC 的默认系统头目录为 `/usr/include` 与 `/usr/include/x86_64-linux-gnu`，**不含** `/usr/include/eigen3`，因此必须显式写 `-I/usr/include/eigen3`。
+
+Debian/Ubuntu 把 Eigen 装在带版本号的子目录 `eigen3/` 下以便多版本共存，这是需要手工指定该路径的原因。OpenCV 同理，其头文件位于 `/usr/include/opencv4/opencv2/`，而源码写作 `<opencv2/opencv.hpp>`，因此 pkg-config 给出的 `-I/usr/include/opencv4` 同样不可省略。
+
+**（2）为什么 `transform.hpp` 不单独作为一个 cpp 文件编译？**
+
+因为头文件不是编译单元。`#include` 是预处理阶段的文本替换：预处理器把 `transform.hpp` 的内容原样插入到每一个 `#include` 它的源文件中，随后自身即退出处理流程。因此整个程序只有 `main.cpp` 和 `transform.cpp` 两个编译单元，`transform.hpp` 的内容分别被复制进了这两者——它会被编译两次，但它本身从不被当作独立的 `.cpp` 直接交给编译器。
+
+**（3）为什么只写 `main.cpp` 往往无法得到完整程序？**
+
+因为 `transform.hpp` 中只有**声明**，没有**定义**：
+
+```cpp
+TransformResult transformFrame(const cv::Mat& bgr_frame);              // 声明
+cv::Mat composePreview(const cv::Mat& original, const TransformResult& result);  // 声明
+```
+
+声明只描述函数签名，告诉编译器「存在这样一个函数」，不产生任何机器码；函数体在 `transform.cpp` 中。若只编译 `main.cpp`，编译阶段可以通过（头文件中的声明满足了编译器的检查），但**链接阶段**会失败：
+
+```text
+undefined reference to `transformFrame(cv::Mat const&)'
+```
+
+链接器的职责是把所有目标文件拼成完整可执行文件，它发现 `transformFrame` 与 `composePreview` 只有声明、没有任何目标文件提供实现，无法解析这两个符号，因而报错。解决方式就是在命令行中同时列出 `src/transform.cpp`，让两个编译单元一起参与编译与链接。
+
+**（4）编译成功后产生的文件是什么？**
+
+产生一个**可执行文件**，文件名由 `-o` 指定，此处为 `cpp_task`（27 KB）。它不是目标文件 `.o`，也不是库：`g++` 在没有 `-c` 参数时会连续完成「编译 → 汇编 → 链接」三个阶段，直接输出可执行程序，因此可以直接运行。
+
+### 5.5 运行与输出
+
+程序接口为 `PROGRAM INPUT.mp4 [OUTPUT.mp4]`，输入使用 Project A 录制的原始视频（路径相对于 `cpp/` 为 `../python_A/raw_capture.mp4`）：
+
+```bash
+./cpp_task ../python_A/raw_capture.mp4 cpp_output.mp4
+```
+
+```text
+Input: ../python_A/raw_capture.mp4
+Output: cpp_output.mp4
+Frames: 460
+Mean scene luma: 127.948
+Panels: original | Otsu binary | Canny edges
+```
+
+```bash
+ls -lh cpp_output.mp4
+```
+
+```text
+-rw-rw-r-- 1 audrey audrey 95M  9月 26 18:41 cpp_output.mp4
+```
+
+`Frames: 460` 与 Project A 的录制帧数一致，说明 C++ 程序完整读入了全部帧。输出为三画面并排，宽度是输入的 3 倍（1280 × 3 = 3840，高 720），因此文件体积（95 MB）明显大于输入（13 MB）。
+
+`Mean scene luma: 127.948` 由 `transform.cpp` 中的 Eigen 代码算出：程序用 `cv::mean()` 取得画面的平均 BGR 三通道值，构造 `Eigen::Vector3d`，再与亮度权重向量 `(0.114, 0.587, 0.299)` 做点积得到场景亮度。该值随后参与 Canny 双阈值计算——`low = clamp(0.66 × 127.948, 30, 150)` ≈ 84.4，`high = clamp(1.33 × 127.948, low + 20, 240)` ≈ 170.2，两者均落在钳制区间内，未被截断。
 
 ---
 
 ## 6. CMake Build
 
-> 待完成。需要记录：自写的 `CMakeLists.txt` 完整内容、`cmake -S . -B build`、`cmake --build build`、从 `build/` 运行可执行文件的命令与运行结果。
->
-> 还需回答：手工 `g++` 命令和 CMake 的关系是什么？
+### 6.1 自写的 CMakeLists.txt
+
+文件位于 `cpp/CMakeLists.txt`，完整内容如下：
+
+```cmake
+cmake_minimum_required(VERSION 3.16)
+
+project(robocon_cpp LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+find_package(OpenCV REQUIRED)
+find_package(Eigen3 REQUIRED)
+
+add_executable(cpp_task
+    src/main.cpp
+    src/transform.cpp
+)
+
+target_include_directories(cpp_task PRIVATE
+    include
+    ${OpenCV_INCLUDE_DIRS}
+)
+
+target_link_libraries(cpp_task PRIVATE
+    ${OpenCV_LIBS}
+    Eigen3::Eigen
+)
+```
+
+### 6.2 每条语句与手工 g++ 命令的对应关系
+
+| `CMakeLists.txt` 语句 | 等价的手工编译片段 |
+| --- | --- |
+| `cmake_minimum_required(VERSION 3.16)` | 无对应，声明本文件所需的最低 CMake 版本（本机 3.28.3） |
+| `project(robocon_cpp LANGUAGES CXX)` | 无对应，声明工程名并限定只使用 C++ |
+| `set(CMAKE_CXX_STANDARD 17)` | `-std=c++17` |
+| `set(CMAKE_CXX_STANDARD_REQUIRED ON)` | 无对应，编译器不支持 C++17 时直接报错而非降级 |
+| `find_package(OpenCV REQUIRED)` | 取代 `pkg-config --cflags --libs opencv4` 的查询过程 |
+| `find_package(Eigen3 REQUIRED)` | 取代手工指定 Eigen 的位置 |
+| `add_executable(cpp_task ...)` | `src/main.cpp src/transform.cpp -o cpp_task` |
+| `target_include_directories(... include ...)` | `-Iinclude`；CMake 中相对路径以 `CMakeLists.txt` 所在目录为基准 |
+| `${OpenCV_INCLUDE_DIRS}` | `-I/usr/include/opencv4` |
+| `${OpenCV_LIBS}` | 约 60 个 `-lopencv_*` |
+| `Eigen3::Eigen` | `-I/usr/include/eigen3` |
+
+其中 `Eigen3::Eigen` 是 Ubuntu 的 `libeigen3-dev` 通过 `/usr/share/eigen3/cmake/Eigen3Config.cmake` 导出的 imported target，它自带 `include/eigen3` 这一路径。手工编译时必须自己写出 `-I/usr/include/eigen3`，在 CMake 中只需链接该 target，路径会被自动带上。
+
+### 6.3 配置与构建
+
+```bash
+cmake -S . -B build
+```
+
+```text
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found OpenCV: /usr (found version "4.6.0") 
+-- Configuring done (0.2s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/audrey/ROBOCON-Vision-Assignment-1/cpp/build
+```
+
+```bash
+cmake --build build
+```
+
+```text
+[ 33%] Building CXX object CMakeFiles/cpp_task.dir/src/main.cpp.o
+[ 66%] Building CXX object CMakeFiles/cpp_task.dir/src/transform.cpp.o
+[100%] Linking CXX executable cpp_task
+[100%] Built target cpp_task
+```
+
+- `-S .` 指定源码目录为当前目录（`cpp/`），CMake 从此处读取 `CMakeLists.txt`；
+- `-B build` 指定构建目录为 `cpp/build/`，中间产物与可执行文件全部生成在此，不污染源码目录，该目录已在 `.gitignore` 中排除；
+- `cmake --build build` 在构建目录中执行实际的编译与链接，由 CMake 生成并调用包含全部 include 路径与链接参数的编译器命令。
+
+配置阶段输出 `Found OpenCV: /usr (found version "4.6.0")`，说明正确找到了系统 OpenCV 4.6.0；构建阶段先分别编译两个 `.cpp`（对应 33% 与 66%），最后链接为可执行文件（100%）。
+
+```bash
+ls -lh build/cpp_task
+```
+
+```text
+-rwxrwxr-x 1 audrey audrey 67K  9月 26 18:49 build/cpp_task
+```
+
+可执行文件体积为 67 KB，而 5.2 节手工编译得到的 `cpp/cpp_task` 为 27 KB。差异来源是优化等级：手工命令显式指定了 `-O2`，而本次未设置 `CMAKE_BUILD_TYPE`，CMake 不附加任何优化选项。两者功能完全相同，可参见 6.4 节运行结果一致。
+
+### 6.4 运行
+
+作业要求从 `build/` 目录中运行生成的可执行文件：
+
+```bash
+cd build
+./cpp_task ../../python_A/raw_capture.mp4 cmake_output.mp4
+```
+
+```text
+Input: ../../python_A/raw_capture.mp4
+Output: cmake_output.mp4
+Frames: 460
+Mean scene luma: 127.948
+Panels: original | Otsu binary | Canny edges
+```
+
+```bash
+ls -lh cmake_output.mp4
+```
+
+```text
+-rw-rw-r-- 1 audrey audrey 95M  9月 26 18:50 cmake_output.mp4
+```
+
+输出与 5.5 节手工编译的版本完全一致（460 帧、平均亮度 127.948、95 MB），说明 CMake 构建与手工编译得到的是同一个程序。
+
+输入路径为 `../../python_A/raw_capture.mp4`，比 5.5 节多一级 `../`：此时工作目录是 `cpp/build/`，需向上一级到 `cpp/`、再向上一级才到仓库根目录。
+
+### 6.5 手工 g++ 命令和 CMake 的关系
+
+**`CMakeLists.txt` 是那条手工 `g++` 命令的声明式描述：CMake 读取其中的依赖声明，自动查出 include 路径与库参数，生成 Makefile，再调用 `g++` 完成编译与链接——也就是说，CMake 并不取代 `g++`，它取代的是"手写并维护那条 `g++` 命令"这件事。** 6.2 节的对应关系表即为这一关系的逐条展开。
 
 ---
 

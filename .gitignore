@@ -12,6 +12,7 @@ envs/
 
 # CMake / C++ 构建产物
 build/
+cpp/cpp_task
 
 # 视频输出文件体积过大，不提交到 Git
 *.mp4
