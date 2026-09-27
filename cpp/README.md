@@ -4,6 +4,7 @@
 
 ```text
 cpp/
+├── CMakeLists.txt
 ├── include/
 │   └── transform.hpp
 └── src/
@@ -11,7 +12,9 @@ cpp/
     └── transform.cpp
 ```
 
-仓库中**没有 `CMakeLists.txt`**，这是 Assignment 的一部分，不是遗漏。
+`CMakeLists.txt` 是完成本 Assignment 后新增的文件；`include/` 与 `src/` 下的源码为任务开始时已提供的内容。
+
+> 本文件是任务开始前提供的起步说明。原文此处为「仓库中**没有 `CMakeLists.txt`**，这是 Assignment 的一部分，不是遗漏」——当时该文件确实尚未创建。完成本 Assignment 后它已存在，内容见根目录 `README.md` 第 6 章。
 
 ## 程序功能
 
@@ -60,4 +63,4 @@ PROGRAM INPUT.mp4 [OUTPUT.mp4]
 cpp_processed.mp4
 ```
 
-学生需要先自行完成一次手动编译，再自行编写 `CMakeLists.txt`。
+学生需要先自行完成一次手动编译，再自行编写 `CMakeLists.txt`。这两步均已在仓库中完成：手工编译命令见根目录 `README.md` 第 5 章，`CMakeLists.txt` 的内容与构建过程见第 6 章。
