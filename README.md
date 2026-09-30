@@ -13,13 +13,13 @@ ROBOCON 视觉组 Assignment 2 作业仓库。
 | 项目 | 值 |
 | --- | --- |
 | Ubuntu 版本 | Ubuntu 24.04.4 LTS (Noble Numbat) |
-| Kernel 版本 | 7.0.0-30-generic |
+| Kernel 版本 | 7.0.0-34-generic |
 | CPU | AMD Ryzen 9 8945HX with Radeon Graphics，16 核 / 32 线程，最高 5462.71 MHz |
 | GPU | NVIDIA GeForce RTX 5060 Laptop GPU（独显，`[10de:2d59]`，8151 MiB 显存）<br>AMD/ATI Raphael（集成显卡，`[1002:164e]`） |
 | GPU 正在使用的内核驱动 | NVIDIA → `nvidia`；AMD 集成显卡 → `amdgpu` |
 | 图形会话类型 | **X11** |
-| NVIDIA Driver | 595.84 |
-| CUDA Toolkit | **未安装（N/A）** |
+| NVIDIA Driver | 595.91.07 |
+| CUDA Toolkit | **12.0（V12.0.140）** |
 
 ### 1.2 Ubuntu 版本
 
@@ -42,7 +42,7 @@ uname -r
 ```
 
 ```text
-7.0.0-30-generic
+7.0.0-34-generic
 ```
 
 ### 1.4 CPU
@@ -139,17 +139,27 @@ nvidia-smi
 
 ```text
 +-----------------------------------------------------------------------------------------+
-| NVIDIA-SMI 595.84                 Driver Version: 595.84         CUDA Version: 13.2     |
+| NVIDIA-SMI 595.91.07              Driver Version: 595.91.07      CUDA Version: 13.2     |
 +-----------------------------------------+------------------------+----------------------+
 | GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
 | Fan  Temp   Perf          Pwr:Usage/Cap |         Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
 |=========================================+========================+======================|
 |   0  NVIDIA GeForce RTX 5060 ...    Off |   00000000:01:00.0 Off |                  N/A |
-| N/A   40C    P4              8W /   50W |      15MiB /   8151MiB |      9%      Default |
+| N/A   39C    P4              8W /   50W |      15MiB /   8151MiB |      9%      Default |
+|                                         |                        |                  N/A |
 +-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A            2608      G   /usr/lib/xorg/Xorg                        4MiB |
++-----------------------------------------------------------------------------------------+
 ```
 
-NVIDIA Driver 版本为 **595.84**。上表默认输出会截断较长的卡名，改用 `--query-gpu` 取完整信息：
+NVIDIA Driver 版本为 **595.91.07**。上表默认输出会截断较长的卡名，改用 `--query-gpu` 取完整信息：
 
 ```bash
 nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv
@@ -157,7 +167,7 @@ nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv
 
 ```text
 name, driver_version, memory.total [MiB]
-NVIDIA GeForce RTX 5060 Laptop GPU, 595.84, 8151 MiB
+NVIDIA GeForce RTX 5060 Laptop GPU, 595.91.07, 8151 MiB
 ```
 
 ### 1.9 CUDA Toolkit
@@ -167,11 +177,18 @@ nvcc --version
 ```
 
 ```text
-找不到命令 “nvcc”，但可以通过以下软件包安装它：
-sudo apt install nvidia-cuda-toolkit
+nvcc: NVIDIA (R) Cuda compiler driver
+Copyright (c) 2005-2023 NVIDIA Corporation
+Built on Fri_Jan__6_16:45:21_PST_2023
+Cuda compilation tools, release 12.0, V12.0.140
+Build cuda_12.0.r12.0/compiler.32267302_0
 ```
 
-**本机未安装 CUDA Toolkit。** 本作业的 C++ 部分只需 OpenCV 与 Eigen，不需要 CUDA，因此无需安装。
+**本机已安装 CUDA Toolkit 12.0（V12.0.140）**，由 Ubuntu 源中的 `nvidia-cuda-toolkit` 包提供：
+
+```bash
+sudo apt-get install nvidia-cuda-toolkit
+```
 
 ### 1.10 关于 CUDA 版本的重要区分
 
@@ -180,9 +197,9 @@ sudo apt install nvidia-cuda-toolkit
 | | 含义 | 本机情况 |
 | --- | --- | --- |
 | `nvidia-smi` 中的 `CUDA Version` | 该 **NVIDIA 驱动所支持的最高 CUDA 运行时版本**，是驱动能力的上限，随驱动一起提供 | 13.2 |
-| CUDA Toolkit | **实际安装的开发工具链**（含 `nvcc` 编译器、头文件、运行时库），需单独安装 | **未安装（N/A）** |
+| CUDA Toolkit | **实际安装的开发工具链**（含 `nvcc` 编译器、头文件、运行时库），需单独安装 | **12.0（V12.0.140）** |
 
-即：本机驱动有能力运行面向 CUDA 13.2 及以下版本构建的程序，但因未安装 Toolkit，**无法在本机编译** CUDA 代码——`nvcc` 命令不存在即为直接证据。
+即：本机驱动有能力运行面向 CUDA 13.2 及以下版本构建的程序，而实际安装的 Toolkit 版本为 12.0。**12.0 低于 13.2，因此这套组合可以正常工作**——驱动支持的上限高于（或等于）Toolkit 版本时即可用，反之才会出问题。
 
 ---
 
@@ -1048,4 +1065,6 @@ git gc --prune=now
 - **Conda 环境是「堆叠」的，`conda deactivate` 只退回一层。** 在 `(robocon-a)` 中直接执行 `conda activate robocon-b` 之后，`conda deactivate` 回到的是 `(robocon-a)` 而**不是** `(base)`——终端提示符可以直接观察到这一点。这意味着多个环境会层层叠加，切换项目时需要留意当前实际处在哪一层，可用 `which python` 确认解释器的真实来源。
 - **仓库中没有 `assets/system/` 目录。** 作业说明第 1 节的「建议结构」列出了该目录，但第 2 节 Part I 只要求用命令和文本输出记录系统信息，并写明「截图不是必须的」，因此没有截图可以放入该目录。此外 Git 只跟踪文件、不跟踪目录，空目录本身无法被提交，所以该目录在仓库中不存在是正常现象。结构中的其余截图目录（`assets/python_a/`、`assets/process/`、`assets/python_b/`、`assets/cpp/`）均已放入对应部分的截图。
 - **`cpp/` 与 `assets/cpp/` 是两个用途不同的同名目录。** 前者存放 C++ 源码（`CMakeLists.txt`、`include/`、`src/`），后者存放 C++ 部分的输出截图，与 `python_A/` 对 `assets/python_a/` 的划分方式一致。作业说明的「建议结构」中两者都已列出。
+- **内核自动升级后 NVIDIA 驱动失效，`nvidia-smi` 报「无法与驱动通信」。** 现象：`nvidia-smi` 输出 `NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver`，`lsmod | grep nvidia` 找不到 `nvidia` 模块，独显不可用。排查过程：`dpkg -l | grep nvidia` 显示 `nvidia-driver-595-open` 处于 `ii`（已正确安装）状态，`/usr/bin/nvidia-smi` 命令文件也存在，说明驱动**并不是没装**；`lspci -k` 显示 NVIDIA 显卡那一行的 `Kernel driver in use` **整行消失**，`Kernel modules` 中也只剩 `nvidiafb, nouveau`，原有的 `nvidia_drm` 与 `nvidia` 均已不在列表中。根因：已安装的内核模块包为 `linux-modules-nvidia-595-open-7.0.0-30-generic`，而系统运行的内核已被自动升级到 `7.0.0-34-generic`。Ubuntu 的 NVIDIA 驱动默认使用**预编译内核模块**（不是 DKMS，所以 `dkms status` 输出为空），内核每次升级都需要配套模块包同步升级，本次自动更新未同步，导致新内核下没有 `nvidia.ko` 可加载。修复：`sudo apt-get install --only-upgrade linux-modules-nvidia-595-open-generic-hwe-24.04 nvidia-driver-595-open`（只涉及 17 个包；若改用 `apt upgrade` 则需处理 189 个包），重启后 `nvidia-smi` 恢复正常，驱动版本由 595.84 升至 595.91.07。**结论：遇到 `nvidia-smi` 报「无法与驱动通信」时，应先用 `uname -r` 与 `dpkg -l | grep linux-modules-nvidia` 核对运行内核与模块包版本是否匹配，不要急于重装驱动。**
+- **`apt` 升级过程中中断，在下载阶段是安全的，在安装阶段则可能损坏系统。** 本次排查中曾执行 `apt upgrade` 并因下载过慢而中断。由于中断发生在**下载阶段**（`dpkg` 尚未启动、`/var/log/dpkg.log` 无新增记录），系统未受任何影响，`dpkg -l` 检查显示所有包状态正常，重新执行安装即可。判断依据：终端出现「正在获取 / 已下载」属于下载阶段，可以安全中断；一旦出现「正在解压 / 正在设置」则已进入安装阶段，此时中断可能留下半配置状态的包，需用 `sudo dpkg --configure -a` 修复。
 - **课程提供的 `cpp/README.md` 是任务开始前的说明，与完成后的仓库状态不一致。** 该文件原文写着「仓库中没有 `CMakeLists.txt`」，并称学生需自行编写；这部分工作完成后仓库中实际已存在 `cpp/CMakeLists.txt`。已同步更新该文件，使其描述与最终状态一致。
