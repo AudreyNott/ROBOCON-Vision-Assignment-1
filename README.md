@@ -19,7 +19,7 @@ ROBOCON 视觉组 Assignment 2 作业仓库。
 | GPU 正在使用的内核驱动 | NVIDIA → `nvidia`；AMD 集成显卡 → `amdgpu` |
 | 图形会话类型 | **X11** |
 | NVIDIA Driver | 595.91.07 |
-| CUDA Toolkit | **12.0（V12.0.140）** |
+| CUDA Toolkit | **13.2（V13.2.86）** |
 
 ### 1.2 Ubuntu 版本
 
@@ -172,23 +172,43 @@ NVIDIA GeForce RTX 5060 Laptop GPU, 595.91.07, 8151 MiB
 
 ### 1.9 CUDA Toolkit
 
+本机 CUDA Toolkit 来自 **NVIDIA 官方源**：
+
+```text
+https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/
+```
+
+该源通过 `cuda-keyring` 包（版本 `1.1-1`）提供 GPG 签名密钥，源的配置文件为 `/etc/apt/sources.list.d/cuda-ubuntu2404-x86_64.list`。
+
+安装 CUDA 13.2 工具链：
+
+```bash
+sudo apt-get install cuda-toolkit-13-2
+```
+
+安装后 `nvcc` 位于 `/usr/local/cuda/bin/`（`/usr/local/cuda` 是指向 `/etc/alternatives/cuda` 的软链接，最终指向 `/usr/local/cuda-13.2`）。该目录不在默认 `PATH` 中，需手动加入 `~/.bashrc`：
+
+```bash
+echo 'export PATH=/usr/local/cuda/bin:$PATH' >> ~/.bashrc
+```
+
+验证：
+
 ```bash
 nvcc --version
 ```
 
 ```text
 nvcc: NVIDIA (R) Cuda compiler driver
-Copyright (c) 2005-2023 NVIDIA Corporation
-Built on Fri_Jan__6_16:45:21_PST_2023
-Cuda compilation tools, release 12.0, V12.0.140
-Build cuda_12.0.r12.0/compiler.32267302_0
+Copyright (c) 2005-2026 NVIDIA Corporation
+Built on Fri_May_08_10:53:34_AM_PDT_2026
+Cuda compilation tools, release 13.2, V13.2.86
+Build cuda_13.2.r13.2/compiler.37953736_0
 ```
 
-**本机已安装 CUDA Toolkit 12.0（V12.0.140）**，由 Ubuntu 源中的 `nvidia-cuda-toolkit` 包提供：
+**本机已安装 CUDA Toolkit 13.2（V13.2.86）**，由 NVIDIA 官方源的 `cuda-toolkit-13-2` 包（版本 `13.2.2-1`）提供，安装后共有 38 个 `cuda-*` 包。运行时库搜索路径由 `/etc/ld.so.conf.d/000_cuda.conf` 与 `987_cuda-13.conf` 配置，无需手动设置 `LD_LIBRARY_PATH`。
 
-```bash
-sudo apt-get install nvidia-cuda-toolkit
-```
+> 早期曾安装过 Ubuntu 源中的 `nvidia-cuda-toolkit`（CUDA 12.0），因该版本不支持 RTX 5060 所需的 `sm_120` 架构而更换为 NVIDIA 官方源的 13.2，过程见第 8 章。
 
 ### 1.10 关于 CUDA 版本的重要区分
 
@@ -197,9 +217,14 @@ sudo apt-get install nvidia-cuda-toolkit
 | | 含义 | 本机情况 |
 | --- | --- | --- |
 | `nvidia-smi` 中的 `CUDA Version` | 该 **NVIDIA 驱动所支持的最高 CUDA 运行时版本**，是驱动能力的上限，随驱动一起提供 | 13.2 |
-| CUDA Toolkit | **实际安装的开发工具链**（含 `nvcc` 编译器、头文件、运行时库），需单独安装 | **12.0（V12.0.140）** |
+| CUDA Toolkit | **实际安装的开发工具链**（含 `nvcc` 编译器、头文件、运行时库），需单独安装 | **13.2（V13.2.86）** |
 
-即：本机驱动有能力运行面向 CUDA 13.2 及以下版本构建的程序，而实际安装的 Toolkit 版本为 12.0。**12.0 低于 13.2，因此这套组合可以正常工作**——驱动支持的上限高于（或等于）Toolkit 版本时即可用，反之才会出问题。
+`nvidia-smi` 里的这一项是由驱动**内置**的，装不装 Toolkit 都会显示；而 Toolkit 必须另外安装，两者互不代替。判断这套组合能否工作，看的是**驱动支持的上限是否高于（或等于）Toolkit 版本**：
+
+- 本机驱动 595.91.07 支持到 CUDA 13.2，实际安装的 Toolkit 也是 13.2，**两者对齐，可以正常工作**；
+- 反过来，如果 Toolkit 版本高于驱动支持的上限，`nvcc` 虽然能装、能编译，但生成的程序在运行时会因驱动无法满足而失败。
+
+> 另有一个**同层但不同维度**的兼容性问题：Toolkit 版本还必须包含目标 GPU 的**计算能力（compute capability）**。RTX 5060 属于 Blackwell 架构，计算能力为 `sm_120`，而 CUDA 12.8 之前的版本不认识 `sm_120`。这一点与上面「驱动 vs Toolkit」是两回事，详见第 8 章。
 
 ---
 
@@ -1067,4 +1092,19 @@ git gc --prune=now
 - **`cpp/` 与 `assets/cpp/` 是两个用途不同的同名目录。** 前者存放 C++ 源码（`CMakeLists.txt`、`include/`、`src/`），后者存放 C++ 部分的输出截图，与 `python_A/` 对 `assets/python_a/` 的划分方式一致。作业说明的「建议结构」中两者都已列出。
 - **内核自动升级后 NVIDIA 驱动失效，`nvidia-smi` 报「无法与驱动通信」。** 现象：`nvidia-smi` 输出 `NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver`，`lsmod | grep nvidia` 找不到 `nvidia` 模块，独显不可用。排查过程：`dpkg -l | grep nvidia` 显示 `nvidia-driver-595-open` 处于 `ii`（已正确安装）状态，`/usr/bin/nvidia-smi` 命令文件也存在，说明驱动**并不是没装**；`lspci -k` 显示 NVIDIA 显卡那一行的 `Kernel driver in use` **整行消失**，`Kernel modules` 中也只剩 `nvidiafb, nouveau`，原有的 `nvidia_drm` 与 `nvidia` 均已不在列表中。根因：已安装的内核模块包为 `linux-modules-nvidia-595-open-7.0.0-30-generic`，而系统运行的内核已被自动升级到 `7.0.0-34-generic`。Ubuntu 的 NVIDIA 驱动默认使用**预编译内核模块**（不是 DKMS，所以 `dkms status` 输出为空），内核每次升级都需要配套模块包同步升级，本次自动更新未同步，导致新内核下没有 `nvidia.ko` 可加载。修复：`sudo apt-get install --only-upgrade linux-modules-nvidia-595-open-generic-hwe-24.04 nvidia-driver-595-open`（只涉及 17 个包；若改用 `apt upgrade` 则需处理 189 个包），重启后 `nvidia-smi` 恢复正常，驱动版本由 595.84 升至 595.91.07。**结论：遇到 `nvidia-smi` 报「无法与驱动通信」时，应先用 `uname -r` 与 `dpkg -l | grep linux-modules-nvidia` 核对运行内核与模块包版本是否匹配，不要急于重装驱动。**
 - **`apt` 升级过程中中断，在下载阶段是安全的，在安装阶段则可能损坏系统。** 本次排查中曾执行 `apt upgrade` 并因下载过慢而中断。由于中断发生在**下载阶段**（`dpkg` 尚未启动、`/var/log/dpkg.log` 无新增记录），系统未受任何影响，`dpkg -l` 检查显示所有包状态正常，重新执行安装即可。判断依据：终端出现「正在获取 / 已下载」属于下载阶段，可以安全中断；一旦出现「正在解压 / 正在设置」则已进入安装阶段，此时中断可能留下半配置状态的包，需用 `sudo dpkg --configure -a` 修复。
+- **Ubuntu 源提供的 CUDA 12.0 无法为 RTX 5060 编译代码，改用 NVIDIA 官方源的 13.2。** 最初按 `nvidia-cuda-toolkit` 包安装了 Ubuntu 源中的 CUDA 12.0，`nvcc` 本身可以运行，但该版本发布早于 RTX 5060 所属的 Blackwell 架构，不认识目标 GPU 的计算能力 `sm_120`。这里需要区分两个**互相独立**的兼容性维度：一是「驱动支持的 CUDA 上限 vs 已安装 Toolkit 版本」（见 1.10），12.0 低于驱动的上限 13.2，这一维没有问题；二是「Toolkit 是否包含目标 GPU 的 compute capability」，`sm_120` 自 CUDA 12.8 起才被支持，12.0 这一维不满足。**前者正常并不代表后者也正常**，这也是最初「`nvcc` 能跑、版本也对得上，却编不出可用代码」的原因。修复：移除 Ubuntu 源的旧 Toolkit，改从 NVIDIA 官方源安装 13.2，即
+
+  ```bash
+  sudo apt-get install cuda-toolkit-13-2
+  ```
+
+  安装前先用 `apt-get install -s cuda-toolkit-13-2`（`-s` 为模拟，不实际改动系统）核对待安装的 74 个包，确认其中**不包含** `cuda-drivers`、`nvidia-driver-*`、`libnvidia-compute-*`、`libnvidia-gl-*`、`nvidia-kernel-*` 等会替换现有驱动的包——结果显示这些均未出现，因此该操作不会影响已正常工作的 595.91.07 驱动。安装完成后共 38 个 `cuda-*` 包，`nvcc --version` 显示 `release 13.2, V13.2.86`。
+- **卸载旧 CUDA 后执行 `nvcc` 报「没有那个文件或目录」，是 shell 的命令路径缓存未失效。** 卸载 Ubuntu 源的 CUDA 12.0 并安装 13.2 之后，直接执行 `nvcc --version` 报出的错误是 `bash: /usr/bin/nvcc: 没有那个文件或目录`——注意其中给出的是**绝对路径** `/usr/bin/nvcc`，而不是通常的「command not found」，这个差别正是定位问题的线索。原因：bash 会把执行过的命令路径记入内部哈希表，之后不再搜索 `PATH`。旧版 `nvcc` 位于 `/usr/bin/nvcc` 且已被卸载，但哈希表仍指向它；新版 `nvcc` 位于 `/usr/local/cuda/bin/nvcc`，而该目录默认不在 `PATH` 中。修复：清除哈希缓存，并把新路径加入 `PATH`：
+
+  ```bash
+  hash -r
+  export PATH=/usr/local/cuda/bin:$PATH
+  ```
+
+  写入 `~/.bashrc` 的 `PATH` 配置对新启动的 shell 同样生效。**结论：卸载或移动过某个命令后，若报错信息中出现「绝对路径 + 没有那个文件或目录」，应优先怀疑 shell 的命令哈希缓存，用 `hash -r` 清除后重试。**
 - **课程提供的 `cpp/README.md` 是任务开始前的说明，与完成后的仓库状态不一致。** 该文件原文写着「仓库中没有 `CMakeLists.txt`」，并称学生需自行编写；这部分工作完成后仓库中实际已存在 `cpp/CMakeLists.txt`。已同步更新该文件，使其描述与最终状态一致。
